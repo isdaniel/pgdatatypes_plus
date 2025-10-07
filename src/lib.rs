@@ -1,5 +1,6 @@
 mod email_addr;
 mod twid;
+mod geohash;
 
 ::pgrx::pg_module_magic!(name, version);
 

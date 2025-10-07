@@ -1,10 +1,10 @@
 # pgdatatypes_plus
 
-A PostgreSQL extension that provides additional data types for storing and validating specialized data efficiently. Currently includes `emailaddr` for email addresses and `twid` for Taiwan National IDs.
+A PostgreSQL extension that provides additional data types and spatial functions for storing and validating specialized data efficiently. Currently includes `emailaddr` for email addresses, `twid` for Taiwan National IDs, and `geohash` functions for geospatial encoding.
 
 ## Overview
 
-This extension provides two specialized PostgreSQL data types:
+This extension provides specialized PostgreSQL data types and geospatial functions:
 
 ### EmailAddr Type
 The `emailaddr` type is a PostgreSQL custom data type that:
@@ -23,6 +23,14 @@ The `twid` type is a PostgreSQL custom data type that:
 - Supports indexing for improved query performance
 - Handles both traditional format (1=male, 2=female) and new format (8=male foreign national, 9=female foreign national)
 
+### Geohash Functions
+The extension provides comprehensive geohash functionality for spatial data encoding:
+- **Encoding**: Convert latitude/longitude coordinates to geohash strings with configurable precision
+- **Decoding**: Convert geohash strings back to coordinate points
+- **Neighbor Finding**: Find adjacent geohashes in specific directions (N, NE, E, SE, S, SW, W, NW)
+- **Spatial Indexing**: Efficient geospatial indexing and proximity queries using geohash algorithms
+- **Precision Control**: Support for precision levels 1-12 for different spatial resolutions
+
 ## Features
 
 - **Type Safety**: Strong typing prevents invalid email addresses and Taiwan National IDs from being stored
@@ -30,7 +38,7 @@ The `twid` type is a PostgreSQL custom data type that:
 - **Cast Support**: Automatic casting between custom types and `text` types
 - **Validation**: Built-in validation using official algorithms (RFC for emails, Taiwan government standard for National IDs)
 - **Utility Functions**: Additional functions for extracting metadata (gender and region from TWID)
-
+- **Geospatial Functions**: Comprehensive geohash encoding/decoding for efficient spatial data operations
 ## Installation
 
 ### Prerequisites
@@ -228,6 +236,75 @@ SELECT twid('A123456789');
 SELECT twid('a123456789'); -- Stored as 'A123456789'
 ```
 
+### Geohash Functions Usage
+
+The extension provides comprehensive geohash functionality for encoding and working with geospatial data. Geohash is a geocoding system that represents geographic coordinates as short alphanumeric strings, making it ideal for spatial indexing and proximity queries.
+
+#### Basic Geohash Operations
+
+```sql
+-- Encode coordinates to geohash with default precision (12 characters)
+SELECT geohash_encode(point(-122.4194, 37.7749)); -- San Francisco
+-- Returns: '9q8yyk8yugs8'
+
+-- Encode with specific precision (1-12 characters)
+SELECT geohash_encode_with_precision(point(-122.4194, 37.7749), 5);
+-- Returns: '9q8yy'
+
+-- Decode geohash back to coordinates
+SELECT geohash_decode('9q8yy');
+-- Returns: point(-122.4194, 37.7749) (approximately)
+```
+
+#### Geohash Neighbor Operations
+
+```sql
+-- Find neighboring geohash in a specific direction
+-- Directions: 0=North, 1=NorthEast, 2=East, 3=SouthEast, 
+--            4=South, 5=SouthWest, 6=West, 7=NorthWest
+SELECT geohash_neighbor('9q8yy', 0); -- North neighbor
+-- Returns: '9q8yz'
+
+SELECT geohash_neighbor('9q8yy', 2); -- East neighbor
+-- Returns: '9q8yv'
+
+-- Get all 8 neighboring geohashes at once
+SELECT geohash_neighbors('9q8yy');
+-- Returns: ['{9q8yz,9q8yv,9q8ys,9q8yr,9q8yq,9q8yw,9q8yt,9q8yu}']
+-- Order: [N, NE, E, SE, S, SW, W, NW]
+```
+
+#### Geohash Precision Levels
+
+Different precision levels provide different spatial resolutions:
+
+| Precision | Lat Error | Lng Error | Area Coverage |
+|-----------|-----------|-----------|---------------|
+| 1         | ±23°      | ±23°      | Continent     |
+| 2         | ±2.8°     | ±5.6°     | Large Country |
+| 3         | ±0.70°    | ±0.70°    | Country/State |
+| 4         | ±0.087°   | ±0.18°    | Large City    |
+| 5         | ±0.022°   | ±0.022°   | City District |
+| 6         | ±0.0027°  | ±0.0055°  | Neighborhood  |
+| 7         | ±0.00068° | ±0.00068° | City Block    |
+| 8         | ±0.000085°| ±0.00017° | Building      |
+| 9         | ±0.000021°| ±0.000021°| Building Room |
+| 10        | ±0.0000027°| ±0.0000054°| Small Room   |
+| 11        | ±0.00000067°| ±0.00000067°| Desk         |
+| 12        | ±0.00000008°| ±0.000000017°| Person       |
+
+```sql
+-- Example: Find appropriate precision for different use cases
+-- City-level search (precision 5)
+SELECT geohash_encode_with_precision(point(-122.4194, 37.7749), 5);
+
+-- Building-level search (precision 8)  
+SELECT geohash_encode_with_precision(point(-122.4194, 37.7749), 8);
+
+-- High-precision GPS tracking (precision 12)
+SELECT geohash_encode_with_precision(point(-122.4194, 37.7749), 12);
+```
+
 ### EmailAddr Type
 1. **Validation Scope**: Uses standard email validation rules; may not cover all RFC 5321 edge cases
 2. **Case Sensitivity**: Currently treats email addresses as case-sensitive (local part and domain)
@@ -239,6 +316,13 @@ SELECT twid('a123456789'); -- Stored as 'A123456789'
 3. **Region Mapping**: Uses the official Taiwan region code mapping (A-Z excluding some letters)
 4. **Case Handling**: Input is automatically converted to uppercase for consistency
 
+### Geohash Functions
+1. **Precision Range**: Supports precision levels 1-12; higher precision provides more accuracy but longer strings
+2. **Coordinate Bounds**: Works with standard geographic coordinate ranges (latitude: -90 to 90, longitude: -180 to 180)
+3. **Approximation**: Geohash encoding/decoding introduces small coordinate approximation errors based on precision level
+4. **Spatial Accuracy**: Distance estimation using geohash similarity is approximate; use PostGIS for precise distance calculations
+5. **Grid Boundaries**: Geohash grid cells have discrete boundaries; nearby points may have different geohashes if they cross cell boundaries
+
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
@@ -247,7 +331,3 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 - **Issues**: [GitHub Issues](https://github.com/isdaniel/pgdatatypes_plus/issues)
 - **Repository**: [GitHub Repository](https://github.com/isdaniel/pgdatatypes_plus)
-
----
-
-*Built with ❤️ using [pgrx](https://github.com/pgcentralfoundation/pgrx)*
