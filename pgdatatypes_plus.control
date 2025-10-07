@@ -1,0 +1,6 @@
+comment = 'pgdatatypes_plus:  Created by danielshih'
+default_version = '@CARGO_VERSION@'
+module_pathname = 'pgdatatypes_plus'
+relocatable = false
+superuser = true
+trusted = false
