@@ -1,4 +1,5 @@
 mod email_addr;
+mod twid;
 
 ::pgrx::pg_module_magic!(name, version);
 

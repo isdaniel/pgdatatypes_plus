@@ -1,9 +1,12 @@
 # pgdatatypes_plus
 
-A PostgreSQL extension that provides additional data types, starting with the `emailaddr` type for storing and validating email addresses efficiently.
+A PostgreSQL extension that provides additional data types for storing and validating specialized data efficiently. Currently includes `emailaddr` for email addresses and `twid` for Taiwan National IDs.
 
 ## Overview
 
+This extension provides two specialized PostgreSQL data types:
+
+### EmailAddr Type
 The `emailaddr` type is a PostgreSQL custom data type that:
 - Validates email addresses on input using RFC-compliant validation
 - Stores email addresses efficiently
@@ -11,11 +14,22 @@ The `emailaddr` type is a PostgreSQL custom data type that:
 - Supports indexing for improved query performance
 - Is fully compatible with PostgreSQL's type system
 
+### Taiwan National ID (TWID) Type
+The `twid` type is a PostgreSQL custom data type that:
+- Validates Taiwan National IDs using the official checksum algorithm
+- Stores Taiwan National IDs in a standardized uppercase format
+- Supports gender and region extraction
+- Provides natural ordering (lexicographic comparison)
+- Supports indexing for improved query performance
+- Handles both traditional format (1=male, 2=female) and new format (8=male foreign national, 9=female foreign national)
+
 ## Features
 
-- **Type Safety**: Strong typing prevents invalid email addresses from being stored
-- **Indexing Support**: Full support for B-tree, Hash, and other index types
-- **Cast Support**: Automatic casting between `emailaddr` and `text` types
+- **Type Safety**: Strong typing prevents invalid email addresses and Taiwan National IDs from being stored
+- **Indexing Support**: Full support for B-tree, Hash, and other index types for both data types
+- **Cast Support**: Automatic casting between custom types and `text` types
+- **Validation**: Built-in validation using official algorithms (RFC for emails, Taiwan government standard for National IDs)
+- **Utility Functions**: Additional functions for extracting metadata (gender and region from TWID)
 
 ## Installation
 
@@ -116,11 +130,114 @@ SELECT 'user@domain.com'::emailaddr;
 SELECT emailaddr('user@domain.com');
 ```
 
-## Limitations
+### Taiwan National ID (TWID) Usage
 
+#### Creating Tables with TWID
+
+```sql
+CREATE TABLE citizens (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    national_id twid NOT NULL UNIQUE
+);
+```
+
+#### Inserting Data
+
+```sql
+-- Single insert
+INSERT INTO citizens (name, national_id) 
+VALUES ('王小明', 'A123456789');
+
+-- Bulk insert example
+INSERT INTO citizens (name, national_id)
+VALUES 
+    ('陳美麗', 'F131232216'),
+    ('李大華', 'B234567890'),
+    ('張小芳', 'A287654321');
+```
+
+#### Querying Data
+
+```sql
+-- Basic select
+SELECT * FROM citizens WHERE national_id = 'A123456789';
+
+-- Pattern matching (cast to text for LIKE operations)
+SELECT * FROM citizens WHERE national_id::text LIKE 'A%';
+
+-- Ordering (IDs are sorted lexicographically)
+SELECT * FROM citizens ORDER BY national_id;
+
+-- Range queries
+SELECT * FROM citizens 
+WHERE national_id BETWEEN 'A000000000' AND 'A999999999';
+```
+
+#### TWID-Specific Functions
+
+```sql
+-- Check if a string is a valid Taiwan National ID
+SELECT is_valid_twid('A123456789'); -- Returns true
+SELECT is_valid_twid('A123456788'); -- Returns false (invalid checksum)
+SELECT is_valid_twid('invalid');    -- Returns false
+
+-- Extract gender from Taiwan National ID
+SELECT twid_gender('A123456789'::twid); -- Returns 'M' (male)
+SELECT twid_gender('A223456789'::twid); -- Returns 'F' (female)
+SELECT twid_gender('A823456789'::twid); -- Returns 'M' (male foreign national)
+SELECT twid_gender('A923456789'::twid); -- Returns 'F' (female foreign national)
+
+-- Extract region code from Taiwan National ID
+SELECT twid_region('A123456789'::twid); -- Returns 'A' (臺北市)
+SELECT twid_region('F131232216'::twid); -- Returns 'F' (新北市)
+
+-- Advanced query examples
+SELECT name, national_id, twid_gender(national_id) as gender
+FROM citizens 
+WHERE twid_region(national_id) = 'A'  -- Taipei residents only
+AND twid_gender(national_id) = 'F';   -- Female only
+```
+
+The `twid` type automatically validates Taiwan National IDs on input:
+
+```sql
+-- This will work
+INSERT INTO citizens (name, national_id) VALUES ('Valid User', 'A123456789');
+
+-- This will raise an error (invalid checksum)
+INSERT INTO citizens (name, national_id) VALUES ('Invalid User', 'A123456788');
+-- ERROR: invalid input syntax for type twid: invalid Taiwan National ID format
+
+-- This will also raise an error (wrong format)
+INSERT INTO citizens (name, national_id) VALUES ('Invalid User', 'not-a-twid');
+-- ERROR: invalid input syntax for type twid: invalid Taiwan National ID format
+```
+
+#### TWID Type Casting
+
+```sql
+-- Explicit casting
+SELECT national_id::text FROM citizens;
+SELECT 'A123456789'::twid;
+
+-- Using the twid() function
+SELECT twid('A123456789');
+
+-- Case insensitive input (automatically converted to uppercase)
+SELECT twid('a123456789'); -- Stored as 'A123456789'
+```
+
+### EmailAddr Type
 1. **Validation Scope**: Uses standard email validation rules; may not cover all RFC 5321 edge cases
 2. **Case Sensitivity**: Currently treats email addresses as case-sensitive (local part and domain)
 3. **Internationalization**: Supports international domain names but may have limitations with some Unicode characters
+
+### TWID Type
+1. **Taiwan-Specific**: Only validates Taiwan National IDs according to Taiwan government standards
+2. **Format Support**: Supports both traditional format (1=male, 2=female) and new format (8/9 for foreign nationals)
+3. **Region Mapping**: Uses the official Taiwan region code mapping (A-Z excluding some letters)
+4. **Case Handling**: Input is automatically converted to uppercase for consistency
 
 ## License
 
